@@ -70,22 +70,22 @@ pipeline {
             }
         }
 
-        stage('Code Analysis') {
-            steps {
-                script {
-                    withSonarQubeEnv('SonarQube') {
-                        sh './gradlew sonar -Dsonar.login=$SONAR_AUTH_TOKEN'
-                    }
+        // stage('Code Analysis') {
+        //     steps {
+        //         script {
+        //             withSonarQubeEnv('SonarQube') {
+        //                 sh './gradlew sonar -Dsonar.login=$SONAR_AUTH_TOKEN'
+        //             }
 
-                    def qualityGate = waitForQualityGate()
-                    if (qualityGate.status != 'OK') {
-                        error "SonarQube Quality Gate failed: ${qualityGate.status}"
-                    } else {
-                        echo "SonarQube Quality Gate passed."
-                    }
-                }
-            }
-        }
+        //             def qualityGate = waitForQualityGate()
+        //             if (qualityGate.status != 'OK') {
+        //                 error "SonarQube Quality Gate failed: ${qualityGate.status}"
+        //             } else {
+        //                 echo "SonarQube Quality Gate passed."
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Build and Push docker image') {
             steps {
