@@ -6,7 +6,7 @@ pipeline {
         REPO_URL = 'https://github.com/102vansh/devops-handson.git'
         SONAR_AUTH_TOKEN = credentials('sonarqube')
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        IMAGE_NAME = 'kodedge/exchangerates'
+        IMAGE_NAME = '102vansh/exchangerates'
 
         //following is not required. You can skip.
         GRADLE_HOME = '/opt/gradle'
@@ -21,7 +21,7 @@ pipeline {
                 script {
                     checkout([
                         $class: 'GitSCM',
-                        branches: [[name: '*/main']],
+                        branches: [[name: '*/new-main']],
                         userRemoteConfigs: [
                             [
                                 url: REPO_URL,
@@ -158,7 +158,7 @@ pipeline {
                 script {
                     def imageTag = env.COMMIT_HASH
 
-                     sh 'git checkout main'
+                     sh 'git checkout new-main'
 
                     // Use 'sed' to replace the image tag in values.yaml
                     sh """
@@ -173,7 +173,7 @@ pipeline {
                              git config user.name "kodedge-bot-ci"
                              git add k8chart/values.yaml
                              git commit -m "Update image tag to version ${imageTag}"
-                             git push origin main
+                             git push origin new-main
                         """
                     }
                 }

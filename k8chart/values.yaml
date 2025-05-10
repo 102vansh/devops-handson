@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: kodedge/exchangerates
+  repository: 102vansh/exchangerates
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: 0bfd31b
