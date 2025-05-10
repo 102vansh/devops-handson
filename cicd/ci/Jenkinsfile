@@ -6,13 +6,14 @@ pipeline {
         REPO_URL = 'https://github.com/102vansh/devops-handson.git'
         SONAR_AUTH_TOKEN = credentials('sonarqube')
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        IMAGE_NAME = '102vansh/exchangerates'
+
+        // Use credentials to dynamically set the image name based on the Docker Hub username
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-credentials')
+        IMAGE_NAME = "${DOCKER_HUB_CREDENTIALS_USR}/exchangerates"
 
         //following is not required. You can skip.
         GRADLE_HOME = '/opt/gradle'
         PATH = "$GRADLE_HOME/bin:$PATH"
-
-
     }
 
     stages {
@@ -103,9 +104,29 @@ pipeline {
 
                     echo "Push image in docker hub"
 
-                    docker.withRegistry('https://index.docker.io/v1/', DOCKER_CREDENTIALS_ID) {
-                        def image = docker.build(imageNameWithTag)
-                        image.push()
+                    // Try a different approach for Docker Hub authentication
+                    withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh """
+                            echo "Logging in to Docker Hub as ${DOCKER_USERNAME}..."
+                            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+
+                            echo "Building Docker image ${imageNameWithTag}..."
+                            docker build -t ${imageNameWithTag} .
+
+                            echo "Creating repository if it doesn't exist..."
+                            # This step is optional but can help ensure the repository exists
+                            curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -H "Authorization: Bearer ${DOCKER_PASSWORD}" "https://hub.docker.com/v2/repositories/${DOCKER_USERNAME}/exchangerates"
+
+                            echo "Pushing Docker image to Docker Hub..."
+                            docker push ${imageNameWithTag}
+
+                            # If the above fails, try with the full registry URL
+                            if [ $? -ne 0 ]; then
+                                echo "First push attempt failed, trying with full registry URL..."
+                                docker tag ${imageNameWithTag} docker.io/${imageNameWithTag}
+                                docker push docker.io/${imageNameWithTag}
+                            fi
+                        """
                     }
 
                     env.COMMIT_HASH = commitHash
