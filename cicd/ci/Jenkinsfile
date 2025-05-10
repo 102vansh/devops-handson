@@ -33,6 +33,19 @@ pipeline {
             }
         }
 
+        stage('Setup JDK 17') {
+            steps {
+                script {
+                    sh '''
+                        echo "Installing OpenJDK 17..."
+                        apt-get update
+                        apt-get install -y openjdk-17-jdk
+                        java -version
+                    '''
+                }
+            }
+        }
+
         stage('Build') {
             steps {
                 script {
