@@ -140,12 +140,18 @@ pipeline {
                     def containerName = "exchangerates-container"
                     def imageTag = env.COMMIT_HASH
 
-                    // Check if the container is running, then stop and remove it
+                    // Check for and remove any container with the same name, whether running or not
                     sh """
+                        # Check for running containers with this name
                         if [ \$(docker ps -q -f name=${containerName}) ]; then
-                            echo "Stopping and removing existing container..."
-                            docker stop ${containerName}
-                            docker rm ${containerName}
+                            echo "Stopping running container ${containerName}..."
+                            docker stop ${containerName} || true
+                        fi
+
+                        # Check for any container with this name (running or stopped)
+                        if [ \$(docker ps -a -q -f name=${containerName}) ]; then
+                            echo "Removing container ${containerName}..."
+                            docker rm -f ${containerName} || true
                         fi
                     """
 
@@ -173,12 +179,22 @@ pipeline {
                             fi
                         fi
 
-                        # Also check for any Docker containers using this port and stop them
-                        CONTAINER_ID=\$(docker ps -q --filter publish=\$PORT)
-                        if [ ! -z "\$CONTAINER_ID" ]; then
-                            echo "Docker container \$CONTAINER_ID is using port \$PORT. Stopping it..."
-                            docker stop \$CONTAINER_ID || true
-                            docker rm \$CONTAINER_ID || true
+                        # Check for any Docker containers using this port and stop them
+                        CONTAINER_IDS=\$(docker ps -q --filter publish=\$PORT)
+                        if [ ! -z "\$CONTAINER_IDS" ]; then
+                            echo "Found containers using port \$PORT. Stopping them..."
+                            for CID in \$CONTAINER_IDS; do
+                                echo "Stopping and removing container \$CID..."
+                                docker stop \$CID || true
+                                docker rm \$CID || true
+                            done
+                        fi
+
+                        # Double-check that the port is actually free now
+                        if lsof -i :\$PORT > /dev/null 2>&1 || netstat -tuln 2>/dev/null | grep -q ":\$PORT "; then
+                            echo "Warning: Port \$PORT is still in use after cleanup attempts"
+                        else
+                            echo "Port \$PORT is now available"
                         fi
 
                         # Now run the new container
