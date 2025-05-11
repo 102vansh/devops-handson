@@ -152,7 +152,7 @@ pipeline {
                     // Run the new container
                     sh """
                         echo "Running new container with image tag ${imageTag}..."
-                        docker run -d --name ${containerName} -p 8090:8080 ${IMAGE_NAME}:${imageTag}
+                        docker run -d --name ${containerName} -p 8095:8080 ${IMAGE_NAME}:${imageTag}
                     """
                 }
             }
