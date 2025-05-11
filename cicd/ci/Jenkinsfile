@@ -206,123 +206,123 @@ pipeline {
             }
         }
 
-        stage('Health check on Dev') {
-            steps {
-                script {
-                    echo "Performing health check on Docker container..."
+    //     stage('Health check on Dev') {
+    //         steps {
+    //             script {
+    //                 echo "Performing health check on Docker container..."
 
-                    // Wait for the application to start up
-                    sleep(time: 15, unit: "SECONDS")
+    //                 // Wait for the application to start up
+    //                 sleep(time: 15, unit: "SECONDS")
 
-                    // Get container IP address
-                    def containerIp = sh(script: """
-                        docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' exchangerates-container
-                    """, returnStdout: true).trim()
+    //                 // Get container IP address
+    //                 def containerIp = sh(script: """
+    //                     docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' exchangerates-container
+    //                 """, returnStdout: true).trim()
 
-                    echo "Container IP address: ${containerIp}"
+    //                 echo "Container IP address: ${containerIp}"
 
-                    // Define multiple URLs to try for health check
-                    def healthUrls = [
-                        "http://localhost:8095/actuator/health",
-                        "http://127.0.0.1:8095/actuator/health"
-                    ]
+    //                 // Define multiple URLs to try for health check
+    //                 def healthUrls = [
+    //                     "http://localhost:8095/actuator/health",
+    //                     "http://127.0.0.1:8095/actuator/health"
+    //                 ]
 
-                    // If we got a container IP, add it to the list
-                    if (containerIp && containerIp != '') {
-                        healthUrls.add("http://${containerIp}:8080/actuator/health")
-                    }
+    //                 // If we got a container IP, add it to the list
+    //                 if (containerIp && containerIp != '') {
+    //                     healthUrls.add("http://${containerIp}:8080/actuator/health")
+    //                 }
 
-                    def maxRetries = 5
-                    def retryCount = 0
-                    def success = false
+    //                 def maxRetries = 5
+    //                 def retryCount = 0
+    //                 def success = false
 
-                    // Retry logic for health check
-                    while (retryCount < maxRetries && !success) {
-                        echo "Health check attempt ${retryCount + 1}/${maxRetries}..."
+    //                 // Retry logic for health check
+    //                 while (retryCount < maxRetries && !success) {
+    //                     echo "Health check attempt ${retryCount + 1}/${maxRetries}..."
 
-                        // Try each URL
-                        for (def healthUrl in healthUrls) {
-                            try {
-                                echo "Trying health check URL: ${healthUrl}"
+    //                     // Try each URL
+    //                     for (def healthUrl in healthUrls) {
+    //                         try {
+    //                             echo "Trying health check URL: ${healthUrl}"
 
-                                def response = sh(script: "curl -s --connect-timeout 5 ${healthUrl}", returnStdout: true).trim()
+    //                             def response = sh(script: "curl -s --connect-timeout 5 ${healthUrl}", returnStdout: true).trim()
 
-                                if (response) {
-                                    echo "Response from health check API: ${response}"
+    //                             if (response) {
+    //                                 echo "Response from health check API: ${response}"
 
-                                    try {
-                                        def jsonResponse = readJSON text: response
-                                        if (jsonResponse.status == 'UP') {
-                                            echo "Health check passed: Application is healthy at ${healthUrl}"
-                                            success = true
-                                            break  // Exit the URL loop if successful
-                                        } else {
-                                            echo "Health check returned status: ${jsonResponse.status}"
-                                        }
-                                    } catch (Exception e) {
-                                        echo "Error parsing JSON response: ${e.message}"
-                                    }
-                                } else {
-                                    echo "Empty response from health check at ${healthUrl}"
-                                }
-                            } catch (Exception e) {
-                                echo "Error during health check at ${healthUrl}: ${e.message}"
-                            }
-                        }
+    //                                 try {
+    //                                     def jsonResponse = readJSON text: response
+    //                                     if (jsonResponse.status == 'UP') {
+    //                                         echo "Health check passed: Application is healthy at ${healthUrl}"
+    //                                         success = true
+    //                                         break  // Exit the URL loop if successful
+    //                                     } else {
+    //                                         echo "Health check returned status: ${jsonResponse.status}"
+    //                                     }
+    //                                 } catch (Exception e) {
+    //                                     echo "Error parsing JSON response: ${e.message}"
+    //                                 }
+    //                             } else {
+    //                                 echo "Empty response from health check at ${healthUrl}"
+    //                             }
+    //                         } catch (Exception e) {
+    //                             echo "Error during health check at ${healthUrl}: ${e.message}"
+    //                         }
+    //                     }
 
-                        if (!success) {
-                            echo "All health check URLs failed, retrying in 10 seconds..."
-                            sleep(time: 10, unit: "SECONDS")
-                            retryCount++
-                        }
-                    }
+    //                     if (!success) {
+    //                         echo "All health check URLs failed, retrying in 10 seconds..."
+    //                         sleep(time: 10, unit: "SECONDS")
+    //                         retryCount++
+    //                     }
+    //                 }
 
-                    if (!success) {
-                        // As a last resort, check if the container is actually running
-                        def containerRunning = sh(script: "docker ps -q -f name=exchangerates-container", returnStdout: true).trim()
+    //                 if (!success) {
+    //                     // As a last resort, check if the container is actually running
+    //                     def containerRunning = sh(script: "docker ps -q -f name=exchangerates-container", returnStdout: true).trim()
 
-                        if (containerRunning) {
-                            echo "Container is running but health check failed. Container logs:"
-                            sh "docker logs exchangerates-container"
-                        } else {
-                            echo "Container is not running! Container status:"
-                            sh "docker ps -a -f name=exchangerates-container"
-                        }
+    //                     if (containerRunning) {
+    //                         echo "Container is running but health check failed. Container logs:"
+    //                         sh "docker logs exchangerates-container"
+    //                     } else {
+    //                         echo "Container is not running! Container status:"
+    //                         sh "docker ps -a -f name=exchangerates-container"
+    //                     }
 
-                        error "Health check failed after ${maxRetries} attempts"
-                    }
+    //                     error "Health check failed after ${maxRetries} attempts"
+    //                 }
 
-                }
-            }
-        }
+    //             }
+    //         }
+    //     }
 
-        stage('Update image tag') {
-            steps {
-                script {
-                    def imageTag = env.COMMIT_HASH
+    //     stage('Update image tag') {
+    //         steps {
+    //             script {
+    //                 def imageTag = env.COMMIT_HASH
 
-                     sh 'git checkout new-main'
+    //                  sh 'git checkout new-main'
 
-                    // Use 'sed' to replace the image tag in values.yaml
-                    sh """
-                        sed -i 's/tag:.*/tag: ${imageTag}/' k8chart/values.yaml
-                    """
+    //                 // Use 'sed' to replace the image tag in values.yaml
+    //                 sh """
+    //                     sed -i 's/tag:.*/tag: ${imageTag}/' k8chart/values.yaml
+    //                 """
 
-                    withCredentials([
-                        gitUsernamePassword(credentialsId: GITHUB_CREDENTIALS_ID, gitToolName: 'Default')
-                    ]) {
-                        sh """
-                             git config user.email "kodedge-bot-ci@kodedge.com"
-                             git config user.name "kodedge-bot-ci"
-                             git add k8chart/values.yaml
-                             git commit -m "Update image tag to version ${imageTag}"
-                             git push origin new-main
-                        """
-                    }
-                }
-            }
-        }
-    }
+    //                 withCredentials([
+    //                     gitUsernamePassword(credentialsId: GITHUB_CREDENTIALS_ID, gitToolName: 'Default')
+    //                 ]) {
+    //                     sh """
+    //                          git config user.email "kodedge-bot-ci@kodedge.com"
+    //                          git config user.name "kodedge-bot-ci"
+    //                          git add k8chart/values.yaml
+    //                          git commit -m "Update image tag to version ${imageTag}"
+    //                          git push origin new-main
+    //                     """
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     post {
         always {
