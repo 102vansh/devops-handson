@@ -149,10 +149,42 @@ pipeline {
                         fi
                     """
 
-                    // Run the new container
+                    // Run the new container with more robust port handling
                     sh """
                         echo "Running new container with image tag ${imageTag}..."
-                        docker run -d --name ${containerName} -p 8095:8080 ${IMAGE_NAME}:${imageTag}
+
+                        # Check if port 8095 is already in use and kill any process using it
+                        PORT=8095
+
+                        # Find and kill any process using port 8095
+                        if command -v lsof >/dev/null 2>&1; then
+                            # If lsof is available
+                            PORT_PID=\$(lsof -ti:\$PORT)
+                            if [ ! -z "\$PORT_PID" ]; then
+                                echo "Port \$PORT is in use by process \$PORT_PID. Killing it..."
+                                kill -9 \$PORT_PID || true
+                            fi
+                        elif command -v netstat >/dev/null 2>&1; then
+                            # If netstat is available
+                            PORT_PID=\$(netstat -tulpn 2>/dev/null | grep ":\$PORT " | awk '{print \$7}' | cut -d'/' -f1)
+                            if [ ! -z "\$PORT_PID" ]; then
+                                echo "Port \$PORT is in use by process \$PORT_PID. Killing it..."
+                                kill -9 \$PORT_PID || true
+                            fi
+                        fi
+
+                        # Also check for any Docker containers using this port and stop them
+                        CONTAINER_ID=\$(docker ps -q --filter publish=\$PORT)
+                        if [ ! -z "\$CONTAINER_ID" ]; then
+                            echo "Docker container \$CONTAINER_ID is using port \$PORT. Stopping it..."
+                            docker stop \$CONTAINER_ID || true
+                            docker rm \$CONTAINER_ID || true
+                        fi
+
+                        # Now run the new container
+                        docker run -d --name ${containerName} -p \$PORT:8080 ${IMAGE_NAME}:${imageTag}
+
+                        echo "Container started on port \$PORT"
                     """
                 }
             }
@@ -163,24 +195,49 @@ pipeline {
                 script {
                     echo "Performing health check on Docker container..."
 
-                    sleep(time: 30, unit: "SECONDS")
+                    // Wait for the application to start up
+                    sleep(time: 15, unit: "SECONDS")
 
-                    def healthUrl = "http://host.docker.internal:8090/actuator/health"
+                    def healthUrl = "http://host.docker.internal:8095/actuator/health"
+                    def maxRetries = 5
+                    def retryCount = 0
+                    def success = false
 
-                    def response = sh(script: "curl -s ${healthUrl}", returnStdout: true).trim()
+                    // Retry logic for health check
+                    while (retryCount < maxRetries && !success) {
+                        try {
+                            echo "Health check attempt ${retryCount + 1}/${maxRetries}..."
 
-                    echo "Response from health check API: ${response}"
+                            def response = sh(script: "curl -s ${healthUrl}", returnStdout: true).trim()
+                            echo "Response from health check API: ${response}"
 
-                    def jsonResponse = readJSON text: response
+                            if (response) {
+                                def jsonResponse = readJSON text: response
+                                def status = jsonResponse.status
 
-                    def status = jsonResponse.status
+                                echo "Health Status: ${status}"
 
-                    echo "Health Status: ${status}"
+                                if (status == 'UP') {
+                                    echo 'Health check passed: Application is healthy.'
+                                    success = true
+                                } else {
+                                    echo "Health check returned status: ${status}, retrying..."
+                                    sleep(time: 10, unit: "SECONDS")
+                                }
+                            } else {
+                                echo "Empty response from health check, retrying..."
+                                sleep(time: 10, unit: "SECONDS")
+                            }
+                        } catch (Exception e) {
+                            echo "Error during health check: ${e.message}, retrying..."
+                            sleep(time: 10, unit: "SECONDS")
+                        }
 
-                    if (status == 'UP') {
-                        echo 'Health check passed: Application is healthy.'
-                    } else {
-                        error 'Health check failed: Application is not healthy.'
+                        retryCount++
+                    }
+
+                    if (!success) {
+                        error "Health check failed after ${maxRetries} attempts"
                     }
 
                 }
