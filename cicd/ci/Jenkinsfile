@@ -117,6 +117,8 @@ pipeline {
                             # This step is optional but can help ensure the repository exists
                             curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -H "Authorization: Bearer ${DOCKER_PASSWORD}" "https://hub.docker.com/v2/repositories/${DOCKER_USERNAME}/exchangerates"
 
+// workingon docker 
+
                             echo "Pushing Docker image to Docker Hub..."
                             docker push ${imageNameWithTag}
 
